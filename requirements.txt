@@ -1,0 +1,20 @@
+# Runtime dependencies for CellExLink.
+# These are installed automatically with: pip install -e .
+# They are also pulled in by requirements-dev.txt and requirements-benchmarks.txt.
+
+accelerate>=0.34
+datasets>=3.0
+huggingface-hub>=0.25
+numpy>=1.26,<3
+scipy>=1.11
+sentence-transformers>=3.0
+bioc>=2.1
+pyab3p>=0.1.1
+
+# PyTorch is required by Bioformer/SapBERT and Hugging Face inference/training.
+# For a specific CUDA/CPU build, install torch first using the official PyTorch selector,
+# then install CellExLink with: pip install -e .
+torch>=2.4
+
+transformers>=4.45
+tqdm>=4.67

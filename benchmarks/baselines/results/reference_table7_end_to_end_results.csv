@@ -1,0 +1,10 @@
+system,dataset,precision,recall,f1
+ScispaCy,CellLink,0.231,0.228,0.229
+ScispaCy,CRAFT,0.168,0.183,0.175
+ScispaCy,BioID,0.064,0.166,0.093
+BERN2,CellLink,0.728,0.103,0.181
+BERN2,CRAFT,0.865,0.070,0.129
+BERN2,BioID,0.629,0.042,0.079
+CellExLink,CellLink,0.733,0.716,0.725
+CellExLink,CRAFT,0.788,0.579,0.667
+CellExLink,BioID,0.622,0.496,0.552

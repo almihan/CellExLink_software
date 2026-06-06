@@ -1,0 +1,13 @@
+# Benchmark dependencies for CellExLink.
+# Includes runtime dependencies because benchmarking runs Bioformer/SapBERT-based CellExLink.
+# External baseline tools such as ScispaCy, BERN2, and VANER2 should be installed separately
+# using the instructions in benchmarks/baselines/.
+
+-r requirements.txt
+
+pandas>=2.2
+scikit-learn>=1.5
+matplotlib>=3.8
+requests>=2.32
+tabulate>=0.9
+tqdm>=4.67

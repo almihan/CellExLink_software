@@ -1,0 +1,14 @@
+name: cellexlink
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip>=24
+  - git
+  - pip:
+      - -e .
+
+# Optional extras after activating the environment:
+#   pip install -e ".[abbr]"        # Ab3P abbreviation expansion
+#   pip install -e ".[dev]"         # tests, build, formatting tools
+#   pip install -e ".[benchmarks]"  # benchmark-table utilities

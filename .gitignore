@@ -1,0 +1,236 @@
+# -----------------------------------------------------------------------------
+# CellExLink .gitignore
+# -----------------------------------------------------------------------------
+# Keep the repository focused on source code, documentation, examples, tests,
+# small benchmark reference CSVs, and packaged resources.
+# Do not commit downloaded datasets, model checkpoints, caches, or generated
+# prediction/benchmark outputs.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Operating-system files
+# -----------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# -----------------------------------------------------------------------------
+# Editor and IDE files
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.project
+.pydevproject
+.settings/
+
+# -----------------------------------------------------------------------------
+# Python bytecode and interpreter artifacts
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# -----------------------------------------------------------------------------
+# Python packaging and build outputs
+# -----------------------------------------------------------------------------
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+wheelhouse/
+site/
+
+# -----------------------------------------------------------------------------
+# Virtual environments and local Python environments
+# -----------------------------------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+cellexlink-env/
+.conda/
+conda-meta/
+
+# -----------------------------------------------------------------------------
+# Test, coverage, linting, and type-check caches
+# -----------------------------------------------------------------------------
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.mypy_cache/
+.pyre/
+.pytype/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.cache/ruff/
+
+# -----------------------------------------------------------------------------
+# Jupyter notebooks and checkpoints
+# -----------------------------------------------------------------------------
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+
+# -----------------------------------------------------------------------------
+# Environment variables, credentials, and local secrets
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.token
+secrets.json
+
+# -----------------------------------------------------------------------------
+# Logs and runtime traces
+# -----------------------------------------------------------------------------
+*.log
+logs/
+log/
+*.out
+*.err
+
+# -----------------------------------------------------------------------------
+# Temporary files
+# -----------------------------------------------------------------------------
+tmp/
+temp/
+.tmp/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.part
+*.download
+
+# -----------------------------------------------------------------------------
+# CellExLink generated outputs
+# -----------------------------------------------------------------------------
+outputs/
+cellexlink_outputs/
+quickstart_outputs/
+example_outputs/
+predictions/
+run_outputs/
+runtime_outputs/
+
+# -----------------------------------------------------------------------------
+# Models, checkpoints, and ML artifacts
+# -----------------------------------------------------------------------------
+models/
+checkpoints/
+model_checkpoints/
+saved_models/
+trained_models/
+wandb/
+mlruns/
+lightning_logs/
+runs/
+tensorboard/
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+*.h5
+*.model
+
+# -----------------------------------------------------------------------------
+# Hugging Face, PyTorch, and dataset caches
+# -----------------------------------------------------------------------------
+.huggingface/
+huggingface/
+hf_cache/
+.transformers_cache/
+transformers_cache/
+datasets_cache/
+torch_cache/
+.cache/huggingface/
+.cache/torch/
+.cache/matplotlib/
+
+# -----------------------------------------------------------------------------
+# Downloaded datasets and local data directories
+# -----------------------------------------------------------------------------
+data/
+datasets/
+raw_data/
+processed_data/
+external_data/
+zenodo_downloads/
+*.manifest.json
+models_manifest.json
+datasets_manifest.json
+
+# -----------------------------------------------------------------------------
+# Benchmark generated files
+# -----------------------------------------------------------------------------
+benchmark_outputs/
+benchmarks/outputs/
+benchmarks/predictions/
+benchmarks/baselines_raw/
+benchmarks/runtime_outputs/
+benchmarks/tables/
+
+# Keep only lightweight reference benchmark files in benchmarks/results/.
+benchmarks/results/*
+!benchmarks/results/README.md
+!benchmarks/results/reference_*.csv
+
+# -----------------------------------------------------------------------------
+# Baseline-tool local installs and external repositories
+# -----------------------------------------------------------------------------
+benchmarks/baselines/scispacy/.venv/
+benchmarks/baselines/scispacy/venv/
+benchmarks/baselines/bern2/BERN2/
+benchmarks/baselines/vaner2/VANER2/
+benchmarks/baselines/*/outputs/
+benchmarks/baselines/*/predictions/
+benchmarks/baselines/*/cache/
+
+# -----------------------------------------------------------------------------
+# Docker and local container artifacts
+# -----------------------------------------------------------------------------
+.docker/
+docker/.cache/
+
+# -----------------------------------------------------------------------------
+# Project-specific packaged resources to keep tracked
+# -----------------------------------------------------------------------------
+# These files are part of the installable CellExLink package and should remain
+# under version control.
+!src/cellexlink/resources/
+!src/cellexlink/resources/abbreviations.tsv
+!src/cellexlink/resources/cell_ontology_v2025-12-17.jsonl
+
+# -----------------------------------------------------------------------------
+# Optional local archives created while testing packaging or sharing files
+# -----------------------------------------------------------------------------
+*.tar.gz
+*.tgz
+*.whl

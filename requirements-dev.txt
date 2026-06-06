@@ -1,0 +1,12 @@
+# Development dependencies for CellExLink.
+# Includes runtime dependencies.
+
+-r requirements.txt
+
+pytest>=8
+pytest-cov>=5
+ruff>=0.6
+black>=24.0
+build>=1.2
+twine>=5.1
+seqeval>=1.2

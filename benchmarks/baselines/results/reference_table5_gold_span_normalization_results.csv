@@ -1,0 +1,9 @@
+dataset,condition,entity_group,BERN2,SciSpacy,CellExLink
+CellLink,exact matches only,Cell phenotype,0.342,0.577,0.872
+CellLink,exact matches only,Heterogeneous cell population,0.356,0.544,0.939
+CellLink,exact matches only,Overall,0.342,0.576,0.874
+CellLink,all IDs,Cell phenotype,0.285,0.515,0.786
+CellLink,all IDs,Heterogeneous cell population,0.174,0.363,0.601
+CellLink,all IDs,Overall,0.278,0.506,0.775
+CRAFT,,Overall,0.331,0.490,0.818
+BioID,,Overall,0.220,0.457,0.690

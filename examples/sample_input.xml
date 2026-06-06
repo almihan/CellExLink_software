@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<collection>
+  <source>CellExLink examples</source>
+  <date>2026-06-03</date>
+  <key>cell_type_extraction_example</key>
+  <document>
+    <id>sample-doc-001</id>
+    <passage>
+      <infon key="type">abstract</infon>
+      <offset>0</offset>
+      <text>The mesothelial cell and SMC clusters formed the third population of the SS and SC.</text>
+    </passage>
+    <passage>
+      <infon key="type">abstract</infon>
+      <offset>82</offset>
+      <text>CD8+ T cells were enriched in the tumor microenvironment after therapy.</text>
+    </passage>
+    <passage>
+      <infon key="type">abstract</infon>
+      <offset>150</offset>
+      <text>Trophoblast progenitor cells showed altered signaling after exposure.</text>
+    </passage>
+    <passage>
+      <infon key="type">abstract</infon>
+      <offset>215</offset>
+      <text>Slow and fast muscle fibres were observed in distinct cell lineages.</text>
+    </passage>
+  </document>
+</collection>

@@ -1,0 +1,7 @@
+task,model,size_m,inference_cost,unit,hardware,dataset
+NER,Bioformer-16L,42,19.602,ms/abstract,NVIDIA A16 GPU,JNLPBA
+NER,PubMedBERT,100,46.628,ms/abstract,NVIDIA A16 GPU,JNLPBA
+NEN,Bioformer-16L,42,5.601,ms/entity,NVIDIA A16 GPU,JNLPBA
+NEN,SapBERT,100,9.604,ms/entity,NVIDIA A16 GPU,JNLPBA
+NEN,BioLORD,110,10.561,ms/entity,NVIDIA A16 GPU,JNLPBA
+NEN,MedCPT,100,9.402,ms/entity,NVIDIA A16 GPU,JNLPBA

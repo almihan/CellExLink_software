@@ -1,0 +1,13 @@
+name: cellexlink-scispacy
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - bioc>=2.1
+      - pyobo>=0.12
+      - scispacy>=0.5
+      - spacy>=3.7,<3.9
+      # Install the ScispaCy NER model after creating the environment:
+      # python -m pip install https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.6.0/en_ner_craft_md-0.6.0.tar.gz
