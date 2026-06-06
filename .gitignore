@@ -201,6 +201,8 @@ benchmarks/tables/
 benchmarks/results/*
 !benchmarks/results/README.md
 !benchmarks/results/reference_*.csv
+!benchmarks/data/
+!benchmarks/data/**
 
 # -----------------------------------------------------------------------------
 # Baseline-tool local installs and external repositories
