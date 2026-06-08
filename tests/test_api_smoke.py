@@ -177,3 +177,46 @@ def test_extract_bioc_raises_for_missing_input(tmp_path: Path) -> None:
             input_xml=tmp_path / "missing.xml",
             output_xml=tmp_path / "out.xml",
         )
+
+def test_public_api_surface_is_obvious_without_loading_models() -> None:
+    """The public package should expose NER, NEN, and end-to-end APIs.
+
+    This test must not load Bioformer, SapBERT, Ab3P, or ontology resources.
+    It only checks that the public API shape is stable.
+    """
+
+    from cellexlink import CellExLinkPipeline, ExtractionResult
+
+    pipe = CellExLinkPipeline.from_pretrained(
+        ner_model="dummy-ner-model",
+        nen_model="dummy-nen-model",
+    )
+
+    expected_methods = [
+        "recognize_text",      # NER only, plain text
+        "normalize_mentions",  # NEN only, detected/gold mentions
+        "extract_text",        # end-to-end, plain text
+        "recognize_bioc",      # NER only, BioC XML
+        "normalize_bioc",      # NEN only, BioC XML
+        "extract_bioc",        # end-to-end, BioC XML
+    ]
+
+    for method_name in expected_methods:
+        assert hasattr(pipe, method_name), f"Missing public API method: {method_name}"
+        assert callable(getattr(pipe, method_name))
+
+    result = ExtractionResult(
+        document_id="doc0",
+        passage_index=0,
+        mention="SMC",
+        start=10,
+        end=13,
+        entity_type="cell_type",
+        cl_id="CL:0000192",
+        cl_label="smooth muscle cell",
+        score=0.95,
+        source="test",
+    )
+
+    assert result.to_dict()["mention"] == "SMC"
+    assert result.to_dict()["cl_id"] == "CL:0000192"

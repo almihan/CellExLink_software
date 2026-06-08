@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use CellExLink in your research, please cite this software."
+title: "CellExLink: End-to-End Cell-Type Recognition and Cell Ontology Normalization from Biomedical Text"
+version: "0.1.0"
+abstract: >-
+  CellExLink is a Python package for cell-type named entity recognition,
+  Cell Ontology normalization, and end-to-end extraction from biomedical text.
+  It provides plain-text and BioC XML APIs for recognizing cell-type mentions,
+  linking detected or gold-standard mentions to Cell Ontology identifiers, and
+  running the complete recognition-plus-normalization pipeline.
+authors:
+  - name: "CellExLink contributors"
+  - name: "Shahriyari Lab"
+repository-code: "https://github.com/almihan/CellExLink_software"
+url: "https://github.com/almihan/CellExLink_software"
+license: "Apache-2.0"
+keywords:
+  - biomedical text mining
+  - named entity recognition
+  - named entity normalization
+  - entity linking
+  - cell type
+  - Cell Ontology
+  - BioC

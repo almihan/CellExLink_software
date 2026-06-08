@@ -1,10 +1,10 @@
-"""
-CellExLink: End-to-end cell-type recognition and Cell Ontology normalization.
+"""CellExLink public API.
 
-CellExLink provides:
-1. Cell-type named entity recognition from biomedical text.
-2. Cell Ontology normalization for detected cell-type mentions.
-3. End-to-end BioC XML processing for biomedical literature-mining workflows.
+CellExLink provides three user-facing tasks:
+
+1. Cell-type named entity recognition (NER).
+2. Cell Ontology named entity normalization (NEN).
+3. End-to-end extraction, combining NER and NEN.
 """
 
 from __future__ import annotations
@@ -14,16 +14,17 @@ try:
 except ImportError:  # pragma: no cover
     from importlib_metadata import PackageNotFoundError, version  # type: ignore
 
-from .pipeline import CellExLinkPipeline, ExtractionResult
+from .pipeline import CellExLinkPipeline, ExtractionResult, MentionInput, write_predictions_jsonl
 
 try:
     __version__ = version("cellexlink")
-except PackageNotFoundError:  
-    # Used when running directly from source before installation.
+except PackageNotFoundError:  # Used when running directly from source before installation.
     __version__ = "0.1.0"
 
 __all__ = [
     "CellExLinkPipeline",
     "ExtractionResult",
+    "MentionInput",
+    "write_predictions_jsonl",
     "__version__",
 ]

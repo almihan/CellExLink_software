@@ -1,153 +1,75 @@
-"""
-Conservative text normalization utilities for CellExLink normalization.
+"""Original-compatible plural normalization for CellExLink NEN.
 
-The goal here is not full linguistic stemming. For ontology linking, we only need
-a stable representation that reduces common plural/singular variation in cell-type
-names while avoiding aggressive biomedical term distortion.
+This module intentionally keeps the same conservative behavior as the
+original CellExLink ``normalization/plural_stemmer.py``.  Do not replace this
+with lowercasing, Unicode normalization, or a general-purpose stemmer, because
+those changes alter the strings embedded by SapBERT and can change NEN output.
 """
 
 from __future__ import annotations
 
 import re
-import unicodedata
+from typing import Iterable
 
-DASH_PATTERN = r"[\-\u2010\u2011\u2012\u2013\u2014\u2212]"
-_WHITESPACE_RE = re.compile(r"\s+")
-_EDGE_PUNCT_RE = re.compile(r"^[\s\"'`.,;:()\[\]{}]+|[\s\"'`.,;:()\[\]{}]+$")
-
-GREEK_REPLACEMENTS = {
-    "α": "alpha",
-    "β": "beta",
-    "γ": "gamma",
-    "δ": "delta",
-    "ε": "epsilon",
-    "κ": "kappa",
-    "λ": "lambda",
-    "μ": "mu",
-    "π": "pi",
-    "τ": "tau",
-    "ω": "omega",
-}
+# Same token pattern as the original code: words, punctuation, underscore,
+# comma.  This means strings such as ``CD8+ T cells`` become
+# ``CD8 + T cell`` after plural normalization.
+_TOKEN_FINDER = re.compile(r"[^\W_]+|[^\w\s]|_|,", re.UNICODE)
 
 
-IRREGULAR_PLURALS = {
-    "bacteria": "bacterium",
-    "criteria": "criterion",
-    "data": "datum",
-    "fibres": "fibre",
-    "fibers": "fiber",
-    "media": "medium",
-    "nuclei": "nucleus",
-    "phenomena": "phenomenon",
-}
+def split_tokens(value: object) -> list[str]:
+    """Split text into the original CellExLink token representation."""
+
+    return _TOKEN_FINDER.findall(str(value))
 
 
-DO_NOT_STRIP_S = {
-    "apoptosis",
-    "class",
-    "dendritus",
-    "fibrosis",
-    "gliosis",
-    "homeostasis",
-    "hypothalamus",
-    "islets",  # often appears as a fixed biomedical phrase
-    "langerhans",
-    "mesenchymis",
-    "nervous",
-    "nucleus",
-    "status",
-    "thymus",
-}
+def _replace_tail(word: str, suffix: str, replacement: str) -> str:
+    return word[: -len(suffix)] + replacement
 
 
-def normalize_unicode(text: str) -> str:
-    """Normalize Unicode while preserving biomedical symbols such as + and /."""
-    value = unicodedata.normalize("NFKC", str(text))
-    for greek, replacement in GREEK_REPLACEMENTS.items():
-        value = value.replace(greek, replacement)
-        value = value.replace(greek.upper(), replacement)
-    return value
+def normalize_token(value: object) -> str:
+    """Conservatively singularize one token.
 
-
-def normalize_dashes(text: str, replacement: str = "-") -> str:
-    """Map Unicode dash characters to a stable dash representation."""
-    return re.sub(DASH_PATTERN, replacement, str(text))
-
-
-def collapse_whitespace(text: str) -> str:
-    """Collapse repeated whitespace and strip leading/trailing whitespace."""
-    return _WHITESPACE_RE.sub(" ", str(text)).strip()
-
-
-def strip_edge_punctuation(text: str) -> str:
-    """Remove punctuation only at token boundaries."""
-    return _EDGE_PUNCT_RE.sub("", str(text))
-
-
-def singularize_token(token: str) -> str:
+    This is intentionally not a linguistic stemmer.  It only applies the small
+    set of suffix rules used by the original CellExLink normalizer.
     """
-    Conservative singularization for common cell-type mentions.
 
-    Examples
-    --------
-    cells -> cell
-    lymphocytes -> lymphocyte
-    SMCs -> smc after case folding in normalize_text
-    bodies -> body
-    """
-    token = strip_edge_punctuation(token.casefold())
-    if not token:
-        return token
+    word = str(value)
+    if not word.endswith("s"):
+        return word
 
-    if token in IRREGULAR_PLURALS:
-        return IRREGULAR_PLURALS[token]
+    if word.endswith("viruses"):
+        return _replace_tail(word, "uses", "us")
 
-    if token in DO_NOT_STRIP_S:
-        return token
+    if word.endswith("ies"):
+        if not word.endswith(("eies", "aies")):
+            return _replace_tail(word, "ies", "y")
 
-    # Keep short non-biological words stable.
-    if len(token) <= 3:
-        return token
+    if word.endswith("es"):
+        if not word.endswith(("aes", "ees", "oes")):
+            if word.endswith("sses"):
+                return _replace_tail(word, "es", "")
+            return _replace_tail(word, "es", "e")
 
-    # bodies -> body, colonies -> colony
-    if len(token) > 4 and token.endswith("ies"):
-        return token[:-3] + "y"
+    if word.endswith(("us", "ss")):
+        return word
 
-    # lymphocytes -> lymphocyte, macrophages -> macrophage
-    if len(token) > 4 and token.endswith("es"):
-        if token.endswith(("ches", "shes", "xes", "zes", "ses")):
-            return token[:-2]
-        if token.endswith("tes") or token.endswith("ges"):
-            return token[:-1]
-
-    # cells -> cell, SMCs -> smc, neurons -> neuron
-    if len(token) > 3 and token.endswith("s"):
-        if token.endswith(("ss", "us", "is")):
-            return token
-        return token[:-1]
-
-    return token
+    return _replace_tail(word, "s", "")
 
 
-def normalize_text(text: str, *, singularize: bool = True) -> str:
-    """
-    Normalize text for dictionary lookup and embedding queries.
+def normalize_text(value: object) -> str:
+    """Normalize a mention or ontology alias exactly as the original did."""
 
-    This function intentionally keeps spaces, plus signs, slashes and hyphens
-    because they can be meaningful in biomedical entity names.
-    """
-    value = normalize_unicode(str(text))
-    value = normalize_dashes(value, replacement="-")
-    value = value.casefold()
-    value = collapse_whitespace(value)
-
-    if not singularize:
-        return value
-
-    tokens = [singularize_token(tok) for tok in value.split(" ")]
-    return collapse_whitespace(" ".join(tok for tok in tokens if tok))
+    return " ".join(normalize_token(part) for part in split_tokens(value))
 
 
-# Backward-compatible name used by the old code.
-def plural_normalize_text(text: str) -> str:
-    return normalize_text(text, singularize=True)
+# Compatibility name used by the linker and older code.
+plural_normalize_text = normalize_text
+
+
+__all__ = [
+    "split_tokens",
+    "normalize_token",
+    "normalize_text",
+    "plural_normalize_text",
+]

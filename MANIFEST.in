@@ -1,0 +1,31 @@
+include README.md
+include LICENSE.txt
+include CITATION.cff
+include pyproject.toml
+include MANIFEST.in
+
+recursive-include src/cellexlink/resources *.tsv *.jsonl
+recursive-include examples *.py *.txt *.xml *.json *.jsonl *.md
+recursive-include benchmarks *.py *.md *.txt
+recursive-include tests *.py
+
+prune models
+prune data
+prune benchmark_outputs
+prune outputs
+prune dist
+prune build
+prune .venv
+prune .github
+
+recursive-exclude * __pycache__
+recursive-exclude * *.py[cod]
+recursive-exclude * *.so
+recursive-exclude * .DS_Store
+recursive-exclude * *.egg-info
+recursive-exclude * *.pt
+recursive-exclude * *.pth
+recursive-exclude * *.bin
+recursive-exclude * *.safetensors
+recursive-exclude * *.ckpt
+recursive-exclude * *.onnx

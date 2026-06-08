@@ -1,25 +1,60 @@
 #!/usr/bin/env python
-"""Evaluate Cell Ontology normalization on gold-standard entity spans."""
+"""Evaluate CellExLink gold-span Cell Ontology normalization.
+
+This is the SoftwareX-minimal wrapper around the original-compatible NEN
+metric.  Use this for Table 5-style results.
+
+Important: the prediction XML must preserve the gold ``identifier`` infons from
+the input BioC XML and add predicted fields such as
+``CellExLink-Sapbert_id_0``.  Do not run this on a prediction XML where gold
+``identifier`` infons were stripped.
+"""
+
 from __future__ import annotations
-import argparse
-from pathlib import Path
-from benchmark_utils import evaluate_mentions, load_mentions, pair_named_paths, write_csv
 
-def build_parser():
-    p=argparse.ArgumentParser(description="Evaluate CellExLink-style Cell Ontology normalization.")
-    p.add_argument("--gold", action="append", required=True); p.add_argument("--pred", action="append", required=True)
-    p.add_argument("--system", default="CellExLink"); p.add_argument("--criterion", choices=["exact","relaxed"], default="exact"); p.add_argument("--output-csv", default="benchmark_outputs/nen_results.csv")
-    p.add_argument("--exclude-type", action="append", default=["cell_vague"]); p.add_argument("--quiet", action="store_true")
-    return p
+try:
+    from .eval_original_compatible import (
+        build_common_parser,
+        evaluate_file_pair,
+        pair_named_paths,
+        print_rows,
+        write_csv,
+    )
+except ImportError:  # Allows: python benchmarks/evaluate_*.py
+    from eval_original_compatible import (
+        build_common_parser,
+        evaluate_file_pair,
+        pair_named_paths,
+        print_rows,
+        write_csv,
+    )
 
-def main():
-    a=build_parser().parse_args(); rows=[]
-    for dataset,gold_path,pred_path in pair_named_paths(a.gold,a.pred):
-        gold=load_mentions(gold_path, exclude_types=a.exclude_type); pred=load_mentions(pred_path, exclude_types=a.exclude_type)
-        m=evaluate_mentions(gold,pred,criterion=a.criterion,require_cl_id=True)
-        rows.append(m.to_row(system=a.system,dataset=dataset,task="NEN",criterion=f"{a.criterion}_span_plus_cl_id",gold_file=str(gold_path),pred_file=str(pred_path)))
-        if not a.quiet: print(f"{a.system}\t{dataset}\t{a.criterion}+CL\tP={m.precision:.3f}\tR={m.recall:.3f}\tF1={m.f1:.3f}")
-    write_csv(rows,a.output_csv)
-    if not a.quiet: print(f"Wrote NEN results to {Path(a.output_csv)}")
+
+def main() -> int:
+    parser = build_common_parser("Evaluate gold-span Cell Ontology normalization.")
+    args = parser.parse_args()
+
+    rows = []
+    for dataset_name, gold_path, pred_path in pair_named_paths(args.gold, args.pred):
+        rows.extend(
+            evaluate_file_pair(
+                dataset_name=dataset_name,
+                gold_file=gold_path,
+                pred_file=pred_path,
+                dataset_style=args.dataset_style,
+                score_mode="gold_mention_normalize",
+                model_names=args.model_names,
+                topk=args.topk,
+                score_threshold=args.threshold,
+            )
+        )
+
+    write_csv(rows, args.output_csv)
+    if not args.quiet:
+        print_rows(rows)
+        print(f"Wrote NEN results to {args.output_csv}")
     return 0
-if __name__=="__main__": raise SystemExit(main())
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

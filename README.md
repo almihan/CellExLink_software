@@ -1,360 +1,444 @@
 # CellExLink
 
-CellExLink is a biomedical natural language processing package for end-to-end **cell-type recognition** and **Cell Ontology normalization** from biomedical text.
+CellExLink is a biomedical text-mining package for **cell-type named entity recognition (NER)**, **Cell Ontology named entity normalization (NEN)**, and **end-to-end cell-type extraction** from biomedical text.
 
-The package provides two connected stages:
+The package provides:
 
-1. **Recognition**: detect cell-type mentions in text.
-2. **Normalization**: link recognized mentions to Cell Ontology identifiers.
+- a Python API for NER, NEN, and end-to-end extraction;
+- BioC XML input/output utilities for benchmark and corpus workflows;
+- command-line tools for model download, text prediction, BioC prediction, and BioC normalization;
+- benchmark scripts for reproducing NER, gold-span NEN, and strict end-to-end results.
 
-CellExLink supports both plain-text input and BioC XML input. The recommended user-facing interfaces are the Python API and the `cellexlink` command-line tool.
+CellExLink combines a Bioformer-based cell-type recognizer with a SapBERT-based Cell Ontology normalizer. The normalization step includes Cell Ontology alias retrieval, abbreviation handling, Ab3P-based document-level long-form recovery, and concept reranking.
 
 ---
 
-## Repository structure
+## Repository layout
 
 ```text
 CellExLink/
-├── src/cellexlink/          # installable Python package
-├── examples/                # small runnable examples
-├── tests/                   # model-free unit and smoke tests
-├── docs/                    # installation, usage, I/O, models, benchmarks, troubleshooting
-├── docker/                  # optional Docker support
-├── scripts/                 # model, dataset, and ontology-resource utilities
-├── benchmarks/              # optional paper-result reproducibility material
-├── pyproject.toml
 ├── README.md
 ├── LICENSE.txt
 ├── CITATION.cff
+├── pyproject.toml
 ├── MANIFEST.in
-├── environment.yml
-├── requirements.txt
-├── requirements-dev.txt
-├── requirements-benchmarks.txt
-└── .gitignore
+├── src/
+│   └── cellexlink/
+│       ├── __init__.py
+│       ├── pipeline.py
+│       ├── cli.py
+│       ├── io.py
+│       ├── recognition/
+│       ├── normalization/
+│       └── resources/
+├── examples/
+├── benchmarks/
+└── tests/
 ```
 
-The core software is under `src/cellexlink/`. Benchmarking and baseline-comparison code should remain outside the installable package.
+Large model checkpoints and benchmark datasets are **not** stored in this repository. Download them separately and place them under `models/` and `data/` or pass their paths explicitly.
 
 ---
 
 ## Installation
 
-### Option 1: install from a local clone
+### Install from GitHub
 
 ```bash
-git clone https://github.com/ShahriyariLab/CellExLink-End-to-End-Cell-Type-Extraction-and-Cell-Ontology-Normalization-from-Biomedical-Text.git
-cd CellExLink-End-to-End-Cell-Type-Extraction-and-Cell-Ontology-Normalization-from-Biomedical-Text
+git clone https://github.com/almihan/CellExLink_software.git
+cd CellExLink_software
 
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install -e .
+python -m pip install -e .
 ```
 
-For full abbreviation expansion support with Ab3P:
+The base installation includes Ab3P support through `pyab3p`, so abbreviation expansion is available without installing a separate optional extra.
+
+### Development installation
 
 ```bash
-pip install -e ".[abbr]"
-```
-
-For development and tests:
-
-```bash
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 pytest -q
 ```
 
-For benchmark scripts:
+### Benchmark dependencies
 
 ```bash
-pip install -e ".[benchmarks]"
-```
-
-### Option 2: create a Conda environment
-
-```bash
-conda env create -f environment.yml
-conda activate cellexlink
+python -m pip install -e ".[benchmarks]"
 ```
 
 ---
 
-## Download model checkpoints
+## Model checkpoints
 
-CellExLink does not store large model files in the GitHub repository. Download the default checkpoints with:
+Download or place the CellExLink model checkpoints locally, for example:
 
 ```bash
 cellexlink download-models --output-dir models
 ```
 
-or with the script:
-
-```bash
-python scripts/download_models.py --output-dir models
-```
-
-This creates a local directory similar to:
+Expected local model paths:
 
 ```text
-models/
-├── CellExLink-bioformer16L/
-├── CellExLink-Sapbert/
-└── models_manifest.json
+models/CellExLink-bioformer16L
+models/CellExLink-Sapbert
 ```
 
-You can then use local paths:
-
-```bash
-cellexlink predict-bioc \
-  --input examples/sample_input.xml \
-  --output outputs/sample_output.normalized.xml \
-  --ner-model models/CellExLink-bioformer16L \
-  --nen-model models/CellExLink-Sapbert
-```
+If your models are stored elsewhere, pass the paths with `ner_model`, `nen_model`, `--ner-model`, or `--nen-model`.
 
 ---
 
-## Quick start: plain text
-
-```bash
-python examples/quickstart_text.py --print-results
-```
-
-Using local models:
-
-```bash
-python examples/quickstart_text.py \
-  --ner-model models/CellExLink-bioformer16L \
-  --nen-model models/CellExLink-Sapbert \
-  --print-results
-```
-
-Python API:
+## Python API quick start
 
 ```python
 from cellexlink import CellExLinkPipeline
 
+text = "The mesothelial cell and SMC clusters formed the third population."
+
 pipe = CellExLinkPipeline.from_pretrained(
     ner_model="models/CellExLink-bioformer16L",
     nen_model="models/CellExLink-Sapbert",
+    ontology_path="src/cellexlink/resources/cell_ontology_v2025-12-17.jsonl",
+    abbreviations_path="src/cellexlink/resources/abbreviations.tsv",
 )
+```
 
-results = pipe.extract_text(
-    "The mesothelial cell and SMC clusters formed the third population."
-)
+### 1. NER only
 
-for result in results:
+```python
+ner_results = pipe.recognize_text(text)
+
+for result in ner_results:
     print(result.to_dict())
 ```
 
-Command-line API:
+### 2. NEN only
+
+Use this when mentions are already known, for example from gold annotations or another recognizer.
+
+```python
+nen_results = pipe.normalize_mentions(
+    mentions=[
+        {"text": "mesothelial cell", "start": text.index("mesothelial cell")},
+        {"text": "SMC", "start": text.index("SMC")},
+    ],
+    document_text=text,
+)
+
+for result in nen_results:
+    print(result.to_dict())
+```
+
+### 3. End-to-end extraction
+
+```python
+e2e_results = pipe.extract_text(text)
+
+for result in e2e_results:
+    print(result.to_dict())
+```
+
+---
+
+## BioC XML API
+
+### NER-only BioC prediction
+
+```python
+pipe.recognize_bioc(
+    input_xml="examples/sample_input.xml",
+    output_xml="outputs/sample.ner.xml",
+)
+```
+
+### Gold-span NEN BioC prediction
+
+```python
+pipe.normalize_bioc(
+    input_xml="examples/sample_gold_spans.xml",
+    output_xml="outputs/sample.normalized.xml",
+)
+```
+
+### End-to-end BioC extraction
+
+```python
+pipe.extract_bioc(
+    input_xml="examples/sample_input.xml",
+    output_xml="outputs/sample.end_to_end.xml",
+    ner_output_xml="outputs/sample.ner.xml",
+)
+```
+
+A complete BioC example is available in:
+
+```bash
+python examples/quickstart_bioc.py
+```
+
+A plain Python API example is available in:
+
+```bash
+python examples/quickstart_api.py
+```
+
+---
+
+## Command-line usage
+
+Check available options with:
+
+```bash
+cellexlink --help
+cellexlink predict-text --help
+cellexlink predict-bioc --help
+cellexlink normalize-bioc --help
+```
+
+### End-to-end prediction from plain text
 
 ```bash
 cellexlink predict-text \
-  --input examples/sample_input.txt \
+  --text "The mesothelial cell and SMC clusters formed the third population." \
   --output outputs/text_predictions.jsonl \
   --ner-model models/CellExLink-bioformer16L \
   --nen-model models/CellExLink-Sapbert
 ```
 
----
-
-## Quick start: BioC XML
-
-```bash
-python examples/quickstart_bioc.py --print-results
-```
-
-Using local models:
-
-```bash
-python examples/quickstart_bioc.py \
-  --ner-model models/CellExLink-bioformer16L \
-  --nen-model models/CellExLink-Sapbert \
-  --print-results
-```
-
-Command-line API:
+### End-to-end prediction from BioC XML
 
 ```bash
 cellexlink predict-bioc \
   --input examples/sample_input.xml \
-  --output outputs/sample_output.normalized.xml \
-  --ner-output outputs/sample_output.ner.xml \
+  --output outputs/sample.end_to_end.xml \
+  --ner-output outputs/sample.ner.xml \
   --ner-model models/CellExLink-bioformer16L \
-  --nen-model models/CellExLink-Sapbert
+  --nen-model models/CellExLink-Sapbert \
+  --ontology-path src/cellexlink/resources/cell_ontology_v2025-12-17.jsonl \
+  --abbreviations-path src/cellexlink/resources/abbreviations.tsv
 ```
 
----
-
-## Recognition-only and normalization-only modes
-
-Run only the NER stage:
-
-```bash
-python -m cellexlink.recognition.predict \
-  --model-path models/CellExLink-bioformer16L \
-  --input-xml examples/sample_input.xml \
-  --output-dir outputs/ner \
-  --output-xml outputs/ner_predictions.xml
-```
-
-Run only the normalization stage on BioC XML that already contains cell-type annotations:
+### Gold-span NEN from BioC XML
 
 ```bash
 cellexlink normalize-bioc \
-  --input outputs/ner_predictions.xml \
-  --output outputs/normalized.xml \
-  --nen-model models/CellExLink-Sapbert
+  --input examples/sample_gold_spans.xml \
+  --output outputs/sample.normalized.xml \
+  --nen-model models/CellExLink-Sapbert \
+  --ontology-path src/cellexlink/resources/cell_ontology_v2025-12-17.jsonl \
+  --abbreviations-path src/cellexlink/resources/abbreviations.tsv
 ```
 
 ---
 
 ## Input and output formats
 
-CellExLink supports:
-
-- plain text files (`.txt`),
-- BioC XML files (`.xml`),
-- JSONL passage files for intermediate recognition data,
-- normalized BioC XML output,
-- JSONL summaries of extracted mentions and linked Cell Ontology identifiers.
-
-See:
+CellExLink supports BioC XML for corpus and benchmark workflows. NER predictions are written as BioC annotations with mention spans. NEN and end-to-end outputs add Cell Ontology prediction fields such as:
 
 ```text
-docs/input_output.md
+CellExLink-Sapbert_id_0
+CellExLink-Sapbert_identifier_name_0
+CellExLink-Sapbert_identifier_score_0
+CellExLink-Sapbert_match_source
 ```
 
----
-
-## Resources
-
-Packaged resources are stored in:
-
-```text
-src/cellexlink/resources/
-├── abbreviations.tsv
-└── cell_ontology_v2025-12-17.jsonl
-```
-
-Use the ontology-building script when the Cell Ontology resource needs to be regenerated:
-
-```bash
-python scripts/build_cell_ontology_resource.py \
-  --input-obo data/raw/cl_2025-12-17.obo \
-  --output-jsonl src/cellexlink/resources/cell_ontology_v2025-12-17.jsonl \
-  --validate-with-package
-```
-
----
-
-## Datasets
-
-Datasets should not be bundled inside the Python package. Download them separately:
-
-```bash
-python scripts/download_datasets.py --output-dir data
-```
-
-The script writes a dataset manifest and a short README into the output directory. Review the original dataset licenses and terms of use before redistribution.
+The plain-text CLI writes JSON Lines, where each line is one extracted mention and optional linked Cell Ontology identifier.
 
 ---
 
 ## Benchmarks
 
-Benchmarking and comparison with external tools should be kept in:
+The benchmark folder contains minimal scripts for the three evaluation settings:
 
 ```text
-benchmarks/
+benchmarks/run_cellexlink.py
+benchmarks/evaluate_ner.py
+benchmarks/evaluate_nen.py
+benchmarks/evaluate_end_to_end.py
 ```
 
-The installable package should not depend on baseline tools such as ScispaCy, BERN2, or VANER2. Use separate benchmark instructions and optional environments for those tools.
+Use `run_cellexlink.py` first to generate prediction files, then run the corresponding evaluation script.
 
-A typical benchmark workflow is:
+Set paths as needed:
 
 ```bash
-python scripts/download_models.py --output-dir models
-python scripts/download_datasets.py --output-dir data
-pip install -r requirements-benchmarks.txt
-python benchmarks/run_cellexlink.py --data-dir data --model-dir models --output-dir benchmarks/results
-python benchmarks/make_tables.py --results-dir benchmarks/results
+DATA=data/evaluation
+MODELS=models
+OUT=benchmark_outputs/cellexlink
+```
+
+### 1. Generate NER predictions
+
+```bash
+python benchmarks/run_cellexlink.py \
+  --mode ner \
+  --input $DATA/CellLink/validation.xml \
+  --input $DATA/CRAFT/test.xml \
+  --input $DATA/BioID/test.xml \
+  --input $DATA/AnatEM/test.xml \
+  --input $DATA/JNLPBA/test.xml \
+  --output-dir $OUT/ner \
+  --ner-model $MODELS/CellExLink-bioformer16L \
+  --batch-size 16
+```
+
+### 2. Generate gold-span NEN predictions
+
+Gold-span NEN uses the gold entity spans in the input BioC XML and predicts Cell Ontology identifiers for those spans.
+
+```bash
+python benchmarks/run_cellexlink.py \
+  --mode normalize \
+  --input $DATA/CellLink/validation.xml \
+  --input $DATA/CRAFT/test.xml \
+  --input $DATA/BioID/test.xml \
+  --output-dir $OUT/nen_gold \
+  --nen-model $MODELS/CellExLink-Sapbert \
+  --ontology-path src/cellexlink/resources/cell_ontology_v2025-12-17.jsonl \
+  --abbreviations-path src/cellexlink/resources/abbreviations.tsv \
+  --batch-size 16
+```
+
+Do not remove the gold `identifier` infons for this evaluation. The normalizer does not use those gold identifiers, but the evaluator needs them to compare with the predicted `CellExLink-Sapbert_id_0` fields.
+
+### 3. Generate strict end-to-end predictions
+
+Strict end-to-end evaluation requires both the mention span and Cell Ontology identifier to be correct.
+
+```bash
+python benchmarks/run_cellexlink.py \
+  --mode full \
+  --input $DATA/CellLink/validation.xml \
+  --input $DATA/CRAFT/test.xml \
+  --input $DATA/BioID/test.xml \
+  --output-dir $OUT/end_to_end \
+  --ner-model $MODELS/CellExLink-bioformer16L \
+  --nen-model $MODELS/CellExLink-Sapbert \
+  --ontology-path src/cellexlink/resources/cell_ontology_v2025-12-17.jsonl \
+  --abbreviations-path src/cellexlink/resources/abbreviations.tsv \
+  --batch-size 16
+```
+
+### 4. Evaluate
+
+NER:
+
+```bash
+python benchmarks/evaluate_ner.py \
+  --gold CellLink=$DATA/CellLink/validation.xml \
+  --pred CellLink=$OUT/ner/CellLink_validation.ner.xml \
+  --gold CRAFT=$DATA/CRAFT/test.xml \
+  --pred CRAFT=$OUT/ner/CRAFT_test.ner.xml \
+  --gold BioID=$DATA/BioID/test.xml \
+  --pred BioID=$OUT/ner/BioID_test.ner.xml \
+  --gold AnatEM=$DATA/AnatEM/test.xml \
+  --pred AnatEM=$OUT/ner/AnatEM_test.ner.xml \
+  --gold JNLPBA=$DATA/JNLPBA/test.xml \
+  --pred JNLPBA=$OUT/ner/JNLPBA_test.ner.xml \
+  --macro-average \
+  --output-csv benchmark_outputs/table_ner_results.csv
+```
+
+Gold-span NEN:
+
+```bash
+python benchmarks/evaluate_nen.py \
+  --dataset-style other \
+  --gold CRAFT=$DATA/CRAFT/test.xml \
+  --pred CRAFT=$OUT/nen_gold/CRAFT_test.normalized.xml \
+  --gold BioID=$DATA/BioID/test.xml \
+  --pred BioID=$OUT/nen_gold/BioID_test.normalized.xml \
+  --model-names CellExLink-Sapbert \
+  --output-csv benchmark_outputs/table_nen_results.csv
+```
+
+For CellLink, run the CellLink-specific setting separately:
+
+```bash
+python benchmarks/evaluate_nen.py \
+  --dataset-style celllink \
+  --gold CellLink=$DATA/CellLink/validation.xml \
+  --pred CellLink=$OUT/nen_gold/CellLink_validation.normalized.xml \
+  --model-names CellExLink-Sapbert \
+  --output-csv benchmark_outputs/table_nen_celllink_results.csv
+```
+
+Strict end-to-end:
+
+```bash
+python benchmarks/evaluate_end_to_end.py \
+  --dataset-style other \
+  --gold CRAFT=$DATA/CRAFT/test.xml \
+  --pred CRAFT=$OUT/end_to_end/CRAFT_test.normalized.xml \
+  --gold BioID=$DATA/BioID/test.xml \
+  --pred BioID=$OUT/end_to_end/BioID_test.normalized.xml \
+  --model-names CellExLink-Sapbert \
+  --output-csv benchmark_outputs/table_end_to_end_results.csv
+```
+
+For CellLink:
+
+```bash
+python benchmarks/evaluate_end_to_end.py \
+  --dataset-style celllink \
+  --gold CellLink=$DATA/CellLink/validation.xml \
+  --pred CellLink=$OUT/end_to_end/CellLink_validation.normalized.xml \
+  --model-names CellExLink-Sapbert \
+  --output-csv benchmark_outputs/table_end_to_end_celllink_results.csv
 ```
 
 ---
 
 ## Tests
 
-The default tests are model-free and should run quickly on CPU:
+The default test suite is lightweight and does not require downloading the large model checkpoints.
 
 ```bash
-pip install -e ".[dev]"
 pytest -q
 ```
 
-Slow tests that download or load real model checkpoints should be marked with:
-
-```python
-@pytest.mark.slow
-```
-
-and run separately:
+Before a release, also check packaging:
 
 ```bash
-pytest -q -m slow
+python -m build
+python -m twine check dist/*
 ```
 
 ---
 
-## Docker
+## Data availability
 
-Build from the repository root:
+Benchmark datasets are available from Zenodo:
 
-```bash
-docker build -f docker/Dockerfile -t cellexlink:latest .
+```text
+https://zenodo.org/records/18090009
 ```
 
-Run the model-free Docker smoke test:
-
-```bash
-docker run --rm cellexlink:latest python /app/docker/docker_test.py
-```
-
-Run with mounted local models:
-
-```bash
-docker run --rm \
-  -v "$PWD/models:/models" \
-  -v "$PWD/examples:/workspace/examples" \
-  -v "$PWD/outputs:/workspace/outputs" \
-  cellexlink:latest \
-  cellexlink predict-bioc \
-    --input /workspace/examples/sample_input.xml \
-    --output /workspace/outputs/sample_output.normalized.xml \
-    --ner-model /models/CellExLink-bioformer16L \
-    --nen-model /models/CellExLink-Sapbert
-```
+Model checkpoint download instructions are provided through the repository documentation and the `cellexlink download-models` command.
 
 ---
 
 ## Citation
 
-If you use CellExLink, please cite the SoftwareX paper and the software release. Update `CITATION.cff` with the final author list, DOI, and release date before submission.
+If you use CellExLink, please cite the CellExLink software paper and the repository release.
 
 ```bibtex
 @software{cellexlink,
-  title = {CellExLink: End-to-End Cell-Type Recognition and Normalization in Biomedical Text},
-  author = {{CellExLink contributors}},
+  title = {CellExLink: End-to-End Cell-Type Recognition and Cell Ontology Normalization from Biomedical Text},
+  author = {CellExLink contributors},
   year = {2026},
-  url = {https://github.com/ShahriyariLab/CellExLink-End-to-End-Cell-Type-Extraction-and-Cell-Ontology-Normalization-from-Biomedical-Text}
+  url = {https://github.com/almihan/CellExLink_software}
 }
 ```
+
+A `CITATION.cff` file is included for GitHub citation support. Update it with the final SoftwareX DOI after acceptance.
 
 ---
 
 ## License
 
-This project is distributed under the MIT License. See `LICENSE.txt`.
+CellExLink is distributed under the Apache License, Version 2.0. See `LICENSE.txt`.
 
-Check the licenses of external datasets, pretrained models, ontology files, and third-party tools before redistribution.
+Third-party datasets, model checkpoints, ontologies, and dependencies may have separate licenses or usage terms. Users are responsible for complying with those terms.

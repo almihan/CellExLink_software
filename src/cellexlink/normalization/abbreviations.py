@@ -1,9 +1,11 @@
-"""
-Abbreviation handling for CellExLink normalization.
+"""Abbreviation handling for CellExLink normalization.
 
-CellExLink uses two abbreviation signals:
-1. A corpus-derived short-form -> CL identifier TSV.
-2. Optional document-level long-form recovery via pyab3p for ambiguous short forms.
+This keeps the original CellExLink strategy:
+1. Load a TSV dictionary with short_form and matched_cl_id.
+2. Directly assign unambiguous abbreviation keys.
+3. Treat keys with multiple CL IDs as ambiguous.
+4. For ambiguous keys, use document-level Ab3P long-form recovery when
+   available, then pass the long form through the same ontology linker.
 """
 
 from __future__ import annotations
@@ -11,20 +13,21 @@ from __future__ import annotations
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from difflib import SequenceMatcher
+from importlib import resources
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-DASH_PATTERN = r"[\-\u2010\u2011\u2012\u2013\u2014\u2212]"
-ABBREVIATION_HEADER = ["short_form", "matched_cl_id"]
-
-try:  # Optional dependency.
+try:  # Optional dependency; tests should pass without it.
     import pyab3p  # type: ignore
 except ImportError:  # pragma: no cover
     pyab3p = None  # type: ignore
 
+DEFAULT_ABBREVIATIONS_FILENAME = "abbreviations.tsv"
+ABBREVIATION_HEADER = ["short_form", "matched_cl_id"]
+DASH_PATTERN = r"[\-\u2010\u2011\u2012\u2013\u2014\u2212]"
 
-@dataclass(frozen=True, slots=True)
+
+@dataclass(slots=True)
 class AbbreviationCandidate:
     short_form: str
     key: str
@@ -34,33 +37,44 @@ class AbbreviationCandidate:
 @dataclass(slots=True)
 class AbbreviationLookup:
     direct_lookup: dict[str, tuple[str, str]] = field(default_factory=dict)
-    ambiguous_candidates: dict[str, list[AbbreviationCandidate]] = field(default_factory=dict)
+    ambiguous_candidates: dict[str, list[AbbreviationCandidate]] = field(
+        default_factory=dict
+    )
     all_keys: list[str] = field(default_factory=list)
-    key_to_candidates: dict[str, list[AbbreviationCandidate]] = field(default_factory=dict)
+    key_to_candidates: dict[str, list[AbbreviationCandidate]] = field(
+        default_factory=dict
+    )
     row_counts: Counter = field(default_factory=Counter)
 
     def __bool__(self) -> bool:
-        return bool(self.key_to_candidates)
+        return bool(self.direct_lookup or self.ambiguous_candidates)
 
 
-def normalize_abbreviation_key(text: str) -> str:
-    """Normalize a short form for dictionary lookup, e.g. 'S-MCs' -> 'SMCs'."""
+def default_abbreviations_path() -> Path:
+    candidate = resources.files("cellexlink").joinpath(
+        "resources", DEFAULT_ABBREVIATIONS_FILENAME
+    )
+    return Path(str(candidate))
+
+
+def normalize_abbreviation_key(text: object) -> str:
+    """Normalize abbreviation keys exactly as the original code did."""
+
     value = str(text).strip()
     value = re.sub(DASH_PATTERN, "", value)
     value = re.sub(r"\s+", "", value)
     return value
 
 
-def abbreviation_variant_keys(text: str) -> list[str]:
-    """Return singular/plural variants for short-form lookup."""
+def abbreviation_variant_keys(text: object) -> list[str]:
     key = normalize_abbreviation_key(text)
     variants: list[str] = []
     seen: set[str] = set()
 
-    def add(value: str) -> None:
-        if value and value not in seen:
-            variants.append(value)
-            seen.add(value)
+    def add(item: str) -> None:
+        if item and item not in seen:
+            seen.add(item)
+            variants.append(item)
 
     add(key)
     if key.endswith("s") and len(key) > 1:
@@ -70,27 +84,27 @@ def abbreviation_variant_keys(text: str) -> list[str]:
     return variants
 
 
-def abbreviation_threshold_for(mention_text: str) -> float:
-    """Similarity threshold for abbreviation dictionary matching."""
-    n_chars = len(normalize_abbreviation_key(mention_text))
-    if n_chars <= 4:
+def abbreviation_threshold_for(mention_text: object) -> float:
+    n = len(normalize_abbreviation_key(mention_text))
+    if n <= 4:
         return 1.0
-    if n_chars <= 7:
+    if n <= 7:
         return 0.95
     return 0.90
 
 
-def ab3p_fuzzy_threshold_for(short_form_text: str) -> float:
-    """Similarity threshold for matching pyab3p short forms."""
-    n_chars = len(normalize_abbreviation_key(short_form_text))
-    if n_chars <= 4:
+def ab3p_fuzzy_threshold_for(short_form_text: object) -> float:
+    n = len(normalize_abbreviation_key(short_form_text))
+    if n <= 4:
         return 1.0
-    if n_chars <= 7:
+    if n <= 7:
         return 0.95
     return 0.90
 
 
-def abbreviation_sequence_ratio(left: str, right: str) -> float:
+def abbreviation_sequence_ratio(left: object, right: object) -> float:
+    from difflib import SequenceMatcher
+
     left_norm = normalize_abbreviation_key(left)
     right_norm = normalize_abbreviation_key(right)
     if not left_norm or not right_norm:
@@ -98,15 +112,13 @@ def abbreviation_sequence_ratio(left: str, right: str) -> float:
     return SequenceMatcher(None, left_norm, right_norm).ratio()
 
 
-def is_abbreviation_like(text: str) -> bool:
-    """Heuristic used before attempting abbreviation-specific normalization."""
+def is_abbreviation_like(text: object) -> bool:
     raw = str(text).strip()
     if not raw:
         return False
     compact = normalize_abbreviation_key(raw)
     if len(compact) <= 1:
         return False
-
     has_upper = any(ch.isupper() for ch in raw)
     has_digit = any(ch.isdigit() for ch in raw)
     has_symbol = any(ch in "+/-" for ch in raw)
@@ -115,7 +127,6 @@ def is_abbreviation_like(text: str) -> bool:
 
 
 def classify_abbreviation_path(abbr_path: str | Path | None) -> Optional[str]:
-    """Return the recognized abbreviation-file type, or None if unavailable."""
     if abbr_path in [None, "", "."]:
         return None
     path = Path(abbr_path)
@@ -136,34 +147,35 @@ def classify_abbreviation_path(abbr_path: str | Path | None) -> Optional[str]:
     return "other"
 
 
+def _normalize_paths(
+    paths: str | Path | Iterable[str | Path] | None,
+) -> list[Path]:
+    if paths is None:
+        return []
+    if isinstance(paths, (str, Path)):
+        return [Path(paths)]
+    return [Path(item) for item in paths]
+
+
 def load_abbreviation_identifier_lookup(
     abbr_paths: str | Path | Iterable[str | Path] | None,
     *,
     verbose: bool = True,
 ) -> AbbreviationLookup:
+    """Load short-form-to-CL-ID mappings from TSV files.
+
+    Keys with exactly one unique CL ID go into ``direct_lookup``.  Keys with
+    multiple IDs remain in ``ambiguous_candidates`` so Ab3P/document context can
+    decide whether a long form is available.
     """
-    Load short-form -> Cell Ontology ID mappings.
-
-    Expected TSV header:
-
-        short_form<TAB>matched_cl_id
-    """
-    if abbr_paths in [None, "", "."]:
-        return AbbreviationLookup()
-
-    if isinstance(abbr_paths, (str, Path)):
-        paths = [abbr_paths]
-    else:
-        paths = list(abbr_paths)
 
     key_to_candidates: dict[str, list[AbbreviationCandidate]] = defaultdict(list)
     row_counts: Counter = Counter()
 
-    for abbr_path in paths:
-        if classify_abbreviation_path(abbr_path) != "short_form_identifier_tsv":
+    for path in _normalize_paths(abbr_paths):
+        if classify_abbreviation_path(path) != "short_form_identifier_tsv":
             continue
 
-        path = Path(abbr_path)
         if verbose:
             print(f"Loading abbreviation lookup from {path}")
 
@@ -181,11 +193,13 @@ def load_abbreviation_identifier_lookup(
                 short_form, matched_cl_id = fields[:2]
                 short_form = short_form.strip()
                 matched_cl_id = matched_cl_id.strip()
-                if not short_form or matched_cl_id in ["", "-", "None", "none"]:
+                if not short_form:
+                    continue
+                if matched_cl_id in ["", "-", "None", "none"]:
                     continue
 
                 first_id = re.split(r"[,;]", matched_cl_id)[0].strip()
-                if not first_id or first_id in ["-", "None", "none"]:
+                if first_id in ["", "-", "None", "none"]:
                     continue
 
                 key = normalize_abbreviation_key(short_form)
@@ -231,6 +245,7 @@ def load_abbreviation_identifier_lookup(
 
 def normalize_pyab3p_output(results: Any) -> list[tuple[str, str]]:
     """Normalize pyab3p outputs across package versions."""
+
     if isinstance(results, dict):
         return [
             (str(short).strip(), str(long).strip())
@@ -279,14 +294,13 @@ def build_document_abbreviation_lookup(
     *,
     verbose: bool = True,
 ) -> dict[str, dict[str, str]]:
-    """
-    Run Ab3P over documents and return document_key -> short_form_key -> long_form.
-    """
-    keys = sorted(set(str(key) for key in target_document_keys))
+    """Run Ab3P on full document text and return doc -> short key -> long form."""
+
+    keys = sorted({str(key) for key in target_document_keys})
     if not keys:
         return {}
 
-    if pyab3p is None:
+    if pyab3p is None:  # pragma: no cover - optional dependency
         if verbose:
             print("pyab3p is not installed; skipping document-context abbreviation expansion.")
         return {}
@@ -298,22 +312,27 @@ def build_document_abbreviation_lookup(
         document_text = document_text_by_key.get(document_key, "")
         if not document_text.strip():
             continue
+
         try:
             results = detector.get_abbrs(document_text)
-        except Exception as exc:  # pragma: no cover - external package behavior
+        except Exception as exc:  # pragma: no cover - defensive around external lib
             if verbose:
-                print(f"WARN: Ab3P failed for document {document_key}: {exc}")
+                print(f"WARN Ab3P failed for document {document_key}: {exc}")
             continue
 
         pairs = normalize_pyab3p_output(results)
         if not pairs:
             continue
 
-        lookup[document_key] = {
-            normalize_abbreviation_key(short_form): long_form.strip()
-            for short_form, long_form in pairs
-            if short_form and long_form
-        }
+        doc_lookup: dict[str, str] = {}
+        for short_form, long_form in pairs:
+            if not short_form or not long_form:
+                continue
+            key = normalize_abbreviation_key(short_form)
+            if key:
+                doc_lookup[key] = long_form.strip()
+        if doc_lookup:
+            lookup[document_key] = doc_lookup
 
     if verbose:
         print(f"Built Ab3P document lookup for {len(lookup)} documents")
@@ -321,41 +340,20 @@ def build_document_abbreviation_lookup(
     return lookup
 
 
-def find_ab3p_long_form_with_fallback(
-    doc_lookup: dict[str, str],
-    matched_key: str,
-) -> tuple[Optional[str], Optional[str], Optional[str], Optional[float]]:
-    """
-    Find a long form for a matched abbreviation key in one document lookup.
-
-    Returns
-    -------
-    long_form, method, matched_doc_key, score
-    """
-    if not doc_lookup:
-        return None, None, None, None
-
-    exact_hit = doc_lookup.get(matched_key)
-    if exact_hit:
-        return exact_hit, "ab3p_exact_key", matched_key, 1.0
-
-    for variant_key in abbreviation_variant_keys(matched_key):
-        if variant_key == matched_key:
-            continue
-        variant_hit = doc_lookup.get(variant_key)
-        if variant_hit:
-            return variant_hit, "ab3p_exact_variant", variant_key, 1.0
-
-    threshold = ab3p_fuzzy_threshold_for(matched_key)
-    best_key: Optional[str] = None
-    best_score = -1.0
-    for doc_key in doc_lookup:
-        score = abbreviation_sequence_ratio(matched_key, doc_key)
-        if score > best_score:
-            best_score = score
-            best_key = doc_key
-
-    if best_key is not None and best_score >= threshold:
-        return doc_lookup[best_key], "ab3p_fuzzy_shortform", best_key, float(best_score)
-
-    return None, None, None, None
+__all__ = [
+    "DEFAULT_ABBREVIATIONS_FILENAME",
+    "ABBREVIATION_HEADER",
+    "AbbreviationCandidate",
+    "AbbreviationLookup",
+    "default_abbreviations_path",
+    "normalize_abbreviation_key",
+    "abbreviation_variant_keys",
+    "abbreviation_threshold_for",
+    "ab3p_fuzzy_threshold_for",
+    "abbreviation_sequence_ratio",
+    "is_abbreviation_like",
+    "classify_abbreviation_path",
+    "load_abbreviation_identifier_lookup",
+    "normalize_pyab3p_output",
+    "build_document_abbreviation_lookup",
+]

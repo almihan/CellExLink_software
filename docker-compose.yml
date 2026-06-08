@@ -1,0 +1,19 @@
+services:
+  cellexlink:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cellexlink:0.1.0
+    environment:
+      TOKENIZERS_PARALLELISM: "false"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      HF_HOME: /cache/huggingface
+    volumes:
+      - ./models:/models:ro
+      - ./data:/data:ro
+      - ./outputs:/outputs
+      - huggingface-cache:/cache/huggingface
+    command: cellexlink --help
+
+volumes:
+  huggingface-cache:
