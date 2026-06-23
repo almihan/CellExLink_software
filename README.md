@@ -1,7 +1,7 @@
 # CellExLink
 
 CellExLink is a biomedical text-mining package for **cell-type named entity recognition (NER)**, **Cell Ontology named entity normalization (NEN)**, and **end-to-end cell-type extraction** from biomedical text.
-
+![Landing image](landing.png)
 The package provides:
 
 - a Python API for NER, NEN, and end-to-end extraction;
